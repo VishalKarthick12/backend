@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app, resources={
     r"/*": {
-        "origins": ["http://localhost:3000"],
+        "origins": ["http://localhost:3000", "https://*", "http://*"],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"]
     }
@@ -28,7 +28,11 @@ CORS(app, resources={
 
 # Database Configuration
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{os.path.join(BASE_DIR, 'database.db')}"
+DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{os.path.join(BASE_DIR, 'database.db')}")
+# If DATABASE_URL starts with postgres://, replace it with postgresql:// (SQLAlchemy requirement)
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "your-secret-key")
 app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY", "your-jwt-secret-key")
@@ -106,7 +110,7 @@ def get_products():
             
         products = query.all()
         logger.debug(f"Found {len(products)} products")
-        
+    
         if not products:
             logger.warning("No products found in database")
             return jsonify({"message": "No products available"}), 404
@@ -120,7 +124,7 @@ def get_products():
             "description": product.description,
             "stock": product.stock
         } for product in products]
-        
+    
         logger.debug(f"Returning {len(product_list)} products")
         return jsonify(product_list)
     except Exception as e:
@@ -221,7 +225,7 @@ def save_order_details():
         
         db.session.add(new_order)
         db.session.commit()
-        
+    
         logger.debug(f"Order saved successfully with ID: {new_order.id}")
         return jsonify({
             "message": "Order details saved successfully",
@@ -612,4 +616,5 @@ if __name__ == "__main__":
         logger.debug(f"Current product count: {product_count}")
         if product_count == 0:
             logger.warning("No products found in database. Please run add_products.py")
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
